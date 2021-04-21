@@ -1,81 +1,174 @@
-# run_on_arch_action_25827
+# Run-On-Arch GitHub Action
 
-This is a repository for a web application developed with Django, built with [Crowdbotics](https://crowdbotics.com)
+[![](https://github.com/uraimo/run-on-arch-action/workflows/test/badge.svg)](https://github.com/uraimo/run-on-arch-action)
 
-### Features
+A GitHub Action that executes commands on non-x86 CPU architecture (armv6, armv7, aarch64, s390x, ppc64le).
 
-1. **Local Authentication** using email and password with [allauth](https://pypi.org/project/django-allauth/)
-2. **Rest API** using [django rest framework](http://www.django-rest-framework.org/)
-3. **Forgot Password**
-4. Bootstrap4
-5. Toast Notification
-6. Inline content editor in homepage
+## Usage
 
-# Development
+This action requires three input parameters:
 
-Following are instructions on setting up your development environment.
+* `arch`: CPU architecture: `armv6`, `armv7`, `aarch64`, `s390x`, or `ppc64le`. See [Supported Platforms](#supported-platforms) for the full matrix.
+* `distro`: Linux distribution name: `ubuntu16.04`, `ubuntu18.04`, `ubuntu20.04`, `buster`, `stretch`, `jessie`, `fedora_latest`, `alpine_latest` or `archarm_latest`. See [Supported Platforms](#supported-platforms) for the full matrix.
+* `run`: Shell commands to execute in the container.
 
-The recommended way for running the project locally and for development is using Docker.
+The action also accepts some optional input parameters:
 
-It's possible to also run the project without Docker.
+* `githubToken`: Your GitHub token, used for caching Docker images in your project's public package registry. Usually this would just be `${{ github.token }}`. This speeds up subsequent builds and is highly recommended.
+* `env`: Environment variables to propagate to the container. YAML, but must begin with a `|` character. These variables will be available in both run and setup.
+* `shell`: The shell to run commands with in the container. Default: `/bin/sh` on Alpine, `/bin/bash` for other distros.
+* `dockerRunArgs`: Additional arguments to pass to `docker run`, such as volume mappings. See [`docker run` documentation](https://docs.docker.com/engine/reference/commandline/run).
+* `setup`: Shell commands to execute on the host before running the container, such as creating directories for volume mappings.
+* `install`: Shell commands to execute in the container as part of `docker build`, such as installing dependencies. This speeds up subsequent builds if `githubToken` is also used, but note that the image layer will be publicly available in your projects GitHub Package Registry, so make sure the resulting image does not have any secrets cached in logs or state.
 
-## Docker Setup (Recommended)
+### Basic example
 
-This project is set up to run using [Docker Compose](https://docs.docker.com/compose/) by default. It is the recommended way. You can also use existing Docker Compose files as basis for custom deployment, e.g. [Docker Swarm](https://docs.docker.com/engine/swarm/), [kubernetes](https://kubernetes.io/), etc.
+A basic example that sets an output variable for use in subsequent steps:
 
-1. Install Docker:
-   - Linux - [get.docker.com](https://get.docker.com/)
-   - Windows or MacOS - [Docker Desktop](https://www.docker.com/products/docker-desktop)
-1. Clone this repo and `cd run_on_arch_action_25827`
-1. Make sure `Pipfile.lock` exists. If it doesn't, generate it with:
-   ```sh
-   $ docker run -it --rm -v "$PWD":/django -w /django python:3.7 pip3 install --no-cache-dir -q pipenv && pipenv lock
-   ```
-1. Use `.env.example` to create `.env`:
-   ```sh
-   $ cp .env.example .env
-   ```
-1. Update `.env` and `docker-compose.override.yml` replacing all `<placeholders>`
-1. Start up the containers:
+```yaml
+on: [push, pull_request]
 
-   ```sh
-   $ docker-compose up
-   ```
+jobs:
+  armv7_job:
+    # The host should always be Linux
+    runs-on: ubuntu-18.04
+    name: Build on ubuntu-18.04 armv7
+    steps:
+      - uses: actions/checkout@v2.1.0
+      - uses: uraimo/run-on-arch-action@v2.0.5
+        name: Run commands
+        id: runcmd
+        with:
+          arch: armv7
+          distro: ubuntu18.04
 
-   This will build the necessary containers and start them, including the web server on the host and port you specified in `.env`.
+          # Not required, but speeds up builds by storing container images in
+          # a GitHub package registry.
+          githubToken: ${{ github.token }}
 
-   Current (project) directroy will be mapped with the container meaning any edits you make will be picked up by the container.
+          # Set an output parameter `uname` for use in subsequent steps
+          run: |
+            uname -a
+            echo ::set-output name=uname::$(uname -a)
 
-1. Seed the Postgres DB (in a separate terminal):
-   ```sh
-   $ docker-compose exec web python3 manage.py makemigrations
-   $ docker-compose exec web python3 manage.py migrate
-   ```
-1. Create a superuser if required:
-   ```sh
-   $ docker-compose exec web python3 manage.py createsuperuser
-   ```
-   You will find an activation link in the server log output.
+      - name: Get the output
+        # Echo the `uname` output parameter from the `runcmd` step
+        run: |
+          echo "The uname output was ${{ steps.runcmd.outputs.uname }}"
+```
 
-## Local Setup (Alternative to Docker)
+### Advanced example
 
-1. [Postgresql](https://www.postgresql.org/download/)
-2. [Python](https://www.python.org/downloads/release/python-365/)
+This shows how to use a matrix to produce platform-specific artifacts, and includes example values for the optional input parameters `setup`, `shell`, `env`, and `dockerRunArgs`.
 
-### Installation
+```yaml
+on: [push, pull_request]
 
-1. Install [pipenv](https://pypi.org/project/pipenv/)
-2. Clone this repo and `cd run_on_arch_action_25827`
-3. Run `pip install --user --upgrade pipenv` to get the latest pipenv version.
-4. Run `pipenv --python 3.6`
-5. Run `pipenv install`
-6. Run `cp .env.example .env`
-7. Update .env file `DATABASE_URL` with your `database_name`, `database_user`, `database_password`, if you use postgresql.
-   Can alternatively set it to `sqlite:////tmp/my-tmp-sqlite.db`, if you want to use sqlite for local development.
+jobs:
+  build_job:
+    # The host should always be linux
+    runs-on: ubuntu-18.04
+    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
 
-### Getting Started
+    # Run steps on a matrix of 3 arch/distro combinations
+    strategy:
+      matrix:
+        include:
+          - arch: aarch64
+            distro: ubuntu18.04
+          - arch: ppc64le
+            distro: alpine_latest
+          - arch: s390x
+            distro: fedora_latest
 
-1. Run `pipenv shell`
-2. Run `python manage.py makemigrations`
-3. Run `python manage.py migrate`
-4. Run `python manage.py runserver`
+    steps:
+      - uses: actions/checkout@v2.1.0
+      - uses: uraimo/run-on-arch-action@v2.0.5
+        name: Build artifact
+        id: build
+        with:
+          arch: ${{ matrix.arch }}
+          distro: ${{ matrix.distro }}
+
+          # Not required, but speeds up builds
+          githubToken: ${{ github.token }}
+
+          # Create an artifacts directory
+          setup: |
+            mkdir -p "${PWD}/artifacts"
+
+          # Mount the artifacts directory as /artifacts in the container
+          dockerRunArgs: |
+            --volume "${PWD}/artifacts:/artifacts"
+
+          # Pass some environment variables to the container
+          env: | # YAML, but pipe character is necessary
+            artifact_name: git-${{ matrix.distro }}_${{ matrix.arch }}
+
+          # The shell to run commands with in the container
+          shell: /bin/sh
+
+          # Install some dependencies in the container. This speeds up builds if
+          # you are also using githubToken. Any dependencies installed here will
+          # be part of the container image that gets cached, so subsequent
+          # builds don't have to re-install them. The image layer is cached
+          # publicly in your project's package repository, so it is vital that
+          # no secrets are present in the container state or logs.
+          install: |
+            case "${{ matrix.distro }}" in
+              ubuntu*|jessie|stretch|buster)
+                apt-get update -q -y
+                apt-get install -q -y git
+                ;;
+              fedora*)
+                dnf -y update
+                dnf -y install git which
+                ;;
+              alpine*)
+                apk update
+                apk add git
+                ;;
+            esac
+
+          # Produce a binary artifact and place it in the mounted volume
+          run: |
+            cp $(which git) "/artifacts/${artifact_name}"
+            echo "Produced artifact at /artifacts/${artifact_name}"
+
+      - name: Show the artifact
+        # Items placed in /artifacts in the container will be in
+        # ${PWD}/artifacts on the host.
+        run: |
+          ls -al "${PWD}/artifacts"
+```
+
+## Supported Platforms
+
+This table details the valid `arch`/`distro` combinations:
+
+| arch     | distro     |
+| -------- | ---------- |
+| armv6    | jessie, stretch, buster, alpine_latest |
+| armv7    | jessie, stretch, buster, ubuntu16.04, ubuntu18.04, ubuntu20.04, fedora_latest, alpine_latest, archarm_latest |
+| aarch64  | stretch, buster, ubuntu16.04, ubuntu18.04, ubuntu20.04, fedora_latest, alpine_latest, archarm_latest |
+| s390x    | jessie, stretch, buster, ubuntu16.04, ubuntu18.04, ubuntu20.04, fedora_latest, alpine_latest |
+| ppc64le  | jessie, stretch, buster, ubuntu16.04, ubuntu18.04,ubuntu20.04, fedora_latest, alpine_latest |
+
+
+Using an invalid `arch`/`distro` combination will fail.
+
+## Contributing
+
+New distros and archs can be added simply by creating a Dockerfile named `Dockerfile.{arch}.{distro}` (that targets an image for the desired combination) in the [Dockerfiles](https://github.com/uraimo/run-on-arch-action/blob/master/Dockerfiles) directory. Pull requests welcome!
+
+## Authors
+
+[Umberto Raimondi](https://github.com/uraimo)
+
+[Elijah Shaw-Rutschman](https://github.com/elijahr)
+
+And many other [contributors](https://github.com/uraimo/run-on-arch-action/graphs/contributors).
+
+## License
+
+This project is licensed under the [BSD 3-Clause License](https://github.com/uraimo/run-on-arch-action/blob/master/LICENSE).
