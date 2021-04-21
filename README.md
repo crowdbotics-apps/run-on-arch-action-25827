@@ -4,6 +4,8 @@
 
 A GitHub Action that executes commands on non-x86 CPU architecture (armv6, armv7, aarch64, s390x, ppc64le).
 
+This is a copy of the CB action [repo](https://github.com/cb-001/run-on-arch-action/) which itself is a fork of the Uraimo action [repo](https://github.com/uraimo/run-on-arch-action) but with some modifications to suit our use case.
+
 ## Usage
 
 This action requires three input parameters:

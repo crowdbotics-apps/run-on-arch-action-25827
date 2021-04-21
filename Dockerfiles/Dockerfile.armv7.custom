@@ -1,4 +1,4 @@
-FROM butteredtoast/armv7_buster_custom:0.1
+FROM butteredtoast/armv7_buster_custom:0.2
 
 COPY ./run-on-arch-install.sh /root/run-on-arch-install.sh
 RUN chmod +x /root/run-on-arch-install.sh && /root/run-on-arch-install.sh
