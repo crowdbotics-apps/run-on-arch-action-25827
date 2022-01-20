@@ -1,4 +1,4 @@
-FROM dorsarpi/debian:0.4
+FROM dorsarpi/debian:0.5
 
 COPY ./run-on-arch-install.sh /root/run-on-arch-install.sh
 RUN chmod +x /root/run-on-arch-install.sh && /root/run-on-arch-install.sh
